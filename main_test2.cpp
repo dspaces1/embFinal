@@ -16,7 +16,6 @@
 const unsigned char LED = BIT0;
 unsigned int blockIndex = 0;
 
-
 //1 if the buffer is full, 0 if empty
 //char update_lock = 0;
 //This buffer will be written into TACCR1 on update
@@ -25,15 +24,14 @@ unsigned int value = 0;
 
 RingBuffer bufferStack;
 
-
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TACCR0_INT(void) {
 	++blockIndex;
-	value = bufferStack.pop()
-	TACCR1 = (int)value + 128;
+	value = bufferStack.pop();
+	TACCR1 = (int) value + 128;
 	LPM1_EXIT;
 }
-
+/*
 #pragma vector=TIMER1_A0_VECTOR
 __interrupt void timerA2(void) {
 
@@ -41,7 +39,7 @@ __interrupt void timerA2(void) {
 	TA1CTL = TACLR;
 
 }
-
+*/
 unsigned long int pointerToWord(unsigned char* p) {
 	return ((unsigned long int) p[0]) << 24 | ((unsigned long int) p[1]) << 16
 			| ((unsigned long int) p[2]) << 8 | ((unsigned long int) p[3]);
@@ -114,7 +112,6 @@ int main(void) {
 
 		spiReadFrame(/*(void*)*/block, 40);
 
-		volatile char check; //breakpoint check value
 		unsigned int i; //loop variable
 
 		for (i = 0; i < 7; ++i) {
@@ -124,41 +121,47 @@ int main(void) {
 
 		mmcUnmountBlock();
 
-		unsigned long int startAddress = 0x02fb400 + 0x200
+		unsigned long int startAddress = 0x02fb400 + 0x200;
+		//unsigned long int startAddress = 0x002c3400;
+		volatile char result = mmcMountBlock(startAddress, 512);
+		if (result != MMC_SUCCESS) {
+			return 0;
+		}
 
-		volatile char result = mmcMountBlock(startAddress , 512);
+
 		unsigned int OffsetToNextBlock = 0;
-		unsigned char block[128] = { 0 };
+		//unsigned char block[64] = { 0 };
 		__enable_interrupt();
 
 		while (1 == 1) {
 			LPM1;
 
-			if (blockIndex >= 128){
-				spiReadFrame(/*(void*)*/block, 128);
+			if (blockIndex >= 64) {
+				spiReadFrame(/*(void*)*/block, 64);
 				//Push on stack
-				int i;
-				for (i = 0; i< 128; i = i + 2){
-					bufferStack.push(block[i]);
-				}
+				//bufferStack.push(block[blockIndex]);
+				 int i;
+				 for (i = 0; i< 64; i = i + 2){
+				 bufferStack.push(block[i]);
+				 }
+
 				blockIndex = 0;
 				++OffsetToNextBlock;
 			}
 
-			if (OffsetToNextBlock == 4){
+			if (OffsetToNextBlock == 8) {
 				mmcUnmountBlock();
 				startAddress = startAddress + 0x200;
-				volatile char result = mmcMountBlock(startAddress , 512);
+				volatile char result = mmcMountBlock(startAddress, 512);
+				if (result != MMC_SUCCESS) {
+					return 0;
+				}
+				OffsetToNextBlock = 0;
 			}
-
 
 		}
 	}
 
 	return 0;
-	/*while (1) {
-
-	 sineWave(playNum);
-	 }*/
 
 }
