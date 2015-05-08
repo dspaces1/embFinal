@@ -19,7 +19,7 @@ const unsigned char LED = BIT0;
 //char update_lock = 0;
 //This buffer will be written into TACCR1 on update
 volatile float buffer = 0;
-
+//This is a change
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TACCR0_INT(void) {
@@ -67,8 +67,6 @@ int main(void) {
 	 //Sourced from a clock running at 16MHz this
 	 will give us 16,000 samples/second */
 	TACCR0 = 2000;
-	//This will result in not quite 8 bit resolution if
-	//if we set TACCR1 in multiples of 4
 
 	//TACCR1 will hold the bin width for each sample
 	TACCR1 = 0;
@@ -95,22 +93,16 @@ int main(void) {
 	while (MMC_SUCCESS != mmcPing())
 		;
 	volatile unsigned long size = mmcReadCardSize(); //Check the memory card size
-
 	P1OUT ^= LED; //Toggle the LED to indicate that reading was successful
 
 	volatile unsigned char block[64] = { 0 };
-
 	volatile char result = mmcMountBlock(0x02fb400, 512);
 
 	//Read in the block 64 bytes at a time
 	if (result == MMC_SUCCESS) {
 
-
-		unsigned int i;
-
 		//Read the 24 byte header
 		spiReadFrame(block, 24);
-
 		unsigned long int* words = (unsigned long int*) block;
 		//These are stored in big-endian format
 		volatile unsigned long int snd_offset = pointerToWord(block + 4);
@@ -121,23 +113,16 @@ int main(void) {
 		volatile unsigned int sample_rate = pointerToWord(block + 16);
 		volatile unsigned char channels = pointerToWord(block + 20);
 
-		//Use this function to convert the bytes into ints:
-
-		//Start reading data into buffer at snd offset
-
-		//int dataStart = 64 - snd_offset;
 
 		spiReadFrame((void*) block, 40);
 
 
-
-		volatile char check;
+		volatile char check; //breakpoint check value
+		unsigned int i; //loop variable
 
 		for (i=7; i < 40; i = i + 2 ){
 			push(block[i]);
-
 			check = pop();
-
 		}
 
 		for (i = 0; i < 7; ++i) {
