@@ -32,14 +32,12 @@ __interrupt void TACCR0_INT(void) {
 	LPM1_EXIT;
 }
 /*
-#pragma vector=TIMER1_A0_VECTOR
-__interrupt void timerA2(void) {
-
-	TA1CTL &= ~MC_1; //stop timer
-	TA1CTL = TACLR;
-
-}
-*/
+ #pragma vector=TIMER1_A0_VECTOR
+ __interrupt void timerA2(void) {
+ TA1CTL &= ~MC_1; //stop timer
+ TA1CTL = TACLR;
+ }
+ */
 unsigned long int pointerToWord(unsigned char* p) {
 	return ((unsigned long int) p[0]) << 24 | ((unsigned long int) p[1]) << 16
 			| ((unsigned long int) p[2]) << 8 | ((unsigned long int) p[3]);
@@ -81,9 +79,9 @@ int main(void) {
 
 	P2DIR |= BIT2;
 	P2OUT &= ~BIT2;
-	__delay_cycles(1600000);	// 100ms @ 16MHz
+	__delay_cycles(1600000); // 100ms @ 16MHz
 	P2OUT |= BIT2;
-	__delay_cycles(1600000);	// 100ms @ 16MHz
+	__delay_cycles(1600000); // 100ms @ 16MHz
 
 	while (MMC_SUCCESS != mmcInit())
 		;
@@ -113,43 +111,46 @@ int main(void) {
 		spiReadFrame(/*(void*)*/block, 40);
 
 		unsigned int i; //loop variable
-
+		unsigned int j;
 		for (i = 0; i < 7; ++i) {
 
 			spiReadFrame(/*(void*)*/block, 64); //64 bytes
+			if (i >= 4 && i <= 7) {
+				for (j = 0; j < 64; j = j + 2) {
+					bufferStack.push(block[j]);
+				}
+			}
 		}
-
 		mmcUnmountBlock();
-
+		unsigned char blockSong[128] = { 0 };
 		unsigned long int startAddress = 0x02fb400 + 0x200;
-		//unsigned long int startAddress = 0x002c3400;
+
 		volatile char result = mmcMountBlock(startAddress, 512);
 		if (result != MMC_SUCCESS) {
 			return 0;
 		}
 
-
 		unsigned int OffsetToNextBlock = 0;
-		//unsigned char block[64] = { 0 };
+
 		__enable_interrupt();
 
 		while (1 == 1) {
 			LPM1;
 
 			if (blockIndex >= 64) {
-				spiReadFrame(/*(void*)*/block, 64);
+				spiReadFrame(/*(void*)*/blockSong, 128);
 				//Push on stack
 				//bufferStack.push(block[blockIndex]);
-				 int i;
-				 for (i = 0; i< 64; i = i + 2){
-				 bufferStack.push(block[i]);
-				 }
+
+				for (i = 0; i < 128; i = i + 2) {
+					bufferStack.push(blockSong[i]);
+				}
 
 				blockIndex = 0;
 				++OffsetToNextBlock;
 			}
 
-			if (OffsetToNextBlock == 8) {
+			if (OffsetToNextBlock == 4) {
 				mmcUnmountBlock();
 				startAddress = startAddress + 0x200;
 				volatile char result = mmcMountBlock(startAddress, 512);
