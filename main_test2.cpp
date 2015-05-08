@@ -19,7 +19,7 @@ const unsigned char LED = BIT0;
 //char update_lock = 0;
 //This buffer will be written into TACCR1 on update
 volatile float buffer = 0;
-//This is a change
+
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TACCR0_INT(void) {
@@ -95,7 +95,7 @@ int main(void) {
 	volatile unsigned long size = mmcReadCardSize(); //Check the memory card size
 	P1OUT ^= LED; //Toggle the LED to indicate that reading was successful
 
-	volatile unsigned char block[64] = { 0 };
+	unsigned char block[64] = { 0 };
 	volatile char result = mmcMountBlock(0x02fb400, 512);
 
 	//Read in the block 64 bytes at a time
@@ -114,20 +114,22 @@ int main(void) {
 		volatile unsigned char channels = pointerToWord(block + 20);
 
 
-		spiReadFrame((void*) block, 40);
+		spiReadFrame(/*(void*)*/ block, 40);
 
 
 		volatile char check; //breakpoint check value
 		unsigned int i; //loop variable
 
+
+		RingBuffer buffer;
 		for (i=7; i < 40; i = i + 2 ){
-			push(block[i]);
-			check = pop();
+			buffer.push(block[i]);
+			check = buffer.pop();
 		}
 
 		for (i = 0; i < 7; ++i) {
 			//If you set a breakpoint here you can examine the memory in the card.
-			spiReadFrame((void*) block, 64); //64 bytes
+			spiReadFrame(/*(void*)*/ block, 64); //64 bytes
 
 		}
 
