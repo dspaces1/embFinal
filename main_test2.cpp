@@ -14,18 +14,24 @@
 
 //Red onboard LED
 const unsigned char LED = BIT0;
+unsigned int blockIndex = 0;
+
 
 //1 if the buffer is full, 0 if empty
 //char update_lock = 0;
 //This buffer will be written into TACCR1 on update
 volatile float buffer = 0;
+unsigned int value = 0;
+
+RingBuffer bufferStack;
 
 
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TACCR0_INT(void) {
-	TACCR1 = buffer;
-	//Tell main to update the buffer
-	//update_lock = 0;
+	++blockIndex;
+	value = bufferStack.pop()
+	TACCR1 = (int)value + 128;
+	LPM1_EXIT;
 }
 
 #pragma vector=TIMER1_A0_VECTOR
@@ -36,15 +42,10 @@ __interrupt void timerA2(void) {
 
 }
 
-
-
 unsigned long int pointerToWord(unsigned char* p) {
-			return ((unsigned long int) p[0]) << 24
-					| ((unsigned long int) p[1]) << 16
-					| ((unsigned long int) p[2]) << 8
-					| ((unsigned long int) p[3]);
-		}
-
+	return ((unsigned long int) p[0]) << 24 | ((unsigned long int) p[1]) << 16
+			| ((unsigned long int) p[2]) << 8 | ((unsigned long int) p[3]);
+}
 
 int main(void) {
 	//Turn off the watchdog timer
@@ -80,13 +81,11 @@ int main(void) {
 	//Set as we count up to TACCR1, reset up to TACCR0
 	TA0CCTL1 = OUTMOD_7;
 
-
 	P2DIR |= BIT2;
 	P2OUT &= ~BIT2;
 	__delay_cycles(1600000);	// 100ms @ 16MHz
 	P2OUT |= BIT2;
 	__delay_cycles(1600000);	// 100ms @ 16MHz
-
 
 	while (MMC_SUCCESS != mmcInit())
 		;
@@ -113,29 +112,47 @@ int main(void) {
 		volatile unsigned int sample_rate = pointerToWord(block + 16);
 		volatile unsigned char channels = pointerToWord(block + 20);
 
-
-		spiReadFrame(/*(void*)*/ block, 40);
-
+		spiReadFrame(/*(void*)*/block, 40);
 
 		volatile char check; //breakpoint check value
 		unsigned int i; //loop variable
 
-
-		RingBuffer buffer;
-		for (i=7; i < 40; i = i + 2 ){
-			buffer.push(block[i]);
-			check = buffer.pop();
-		}
-
 		for (i = 0; i < 7; ++i) {
-			//If you set a breakpoint here you can examine the memory in the card.
-			spiReadFrame(/*(void*)*/ block, 64); //64 bytes
 
+			spiReadFrame(/*(void*)*/block, 64); //64 bytes
 		}
 
 		mmcUnmountBlock();
 
+		unsigned long int startAddress = 0x02fb400 + 0x200
 
+		volatile char result = mmcMountBlock(startAddress , 512);
+		unsigned int OffsetToNextBlock = 0;
+		unsigned char block[128] = { 0 };
+		__enable_interrupt();
+
+		while (1 == 1) {
+			LPM1;
+
+			if (blockIndex >= 128){
+				spiReadFrame(/*(void*)*/block, 128);
+				//Push on stack
+				int i;
+				for (i = 0; i< 128; i = i + 2){
+					bufferStack.push(block[i]);
+				}
+				blockIndex = 0;
+				++OffsetToNextBlock;
+			}
+
+			if (OffsetToNextBlock == 4){
+				mmcUnmountBlock();
+				startAddress = startAddress + 0x200;
+				volatile char result = mmcMountBlock(startAddress , 512);
+			}
+
+
+		}
 	}
 
 	return 0;
