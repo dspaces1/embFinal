@@ -59,7 +59,6 @@ int main(void) {
 	P2DIR |= BIT3;
 	P2SEL |= BIT3;
 
-
 //Set DCO to 16 MHz calibrated
 	DCOCTL = CALDCO_16MHZ;
 	BCSCTL1 = CALBC1_16MHZ;
@@ -68,7 +67,7 @@ int main(void) {
 	 //Set up TACCR0 to 1000
 	 //Sourced from a clock running at 16MHz this
 	 will give us 16,000 samples/second */
-	TACCR0 = 1000;
+	TACCR0 = 2000;
 	TA1CCR0 = 1000;
 
 //TACCR1 will hold the bin width for each sample
@@ -136,6 +135,7 @@ int main(void) {
 		unsigned long int startAddress = 0x02fb400 + 0x200;
 		volatile char result = mmcMountBlock(startAddress, 512);
 		if (result != MMC_SUCCESS) {
+			volatile int t = 0;
 			return 0;
 		}
 
@@ -148,11 +148,12 @@ int main(void) {
 				otherBufferStack.push(blockSong[j - 1]);
 			}
 		}
+
 		volatile int checkBufferFull = bufferStack.isFull();
 		volatile int checkBufferTwoFull = otherBufferStack.isFull();
 		unsigned int OffsetToNextBlock = 2;
 		unsigned int sizeReadCounter = 0;
-		unsigned int endSong = snd_size / 512 ;
+		unsigned int endSong = snd_size / 512;
 		__enable_interrupt();
 
 		while (1) {
@@ -166,18 +167,24 @@ int main(void) {
 				volatile int checkBufferEmpty = otherBufferStack.isEmpty();
 				volatile int t = 0;
 			}
-			if (blockIndex >= 32) {
-				spiReadFrame((unsigned char*)blockSong, 128);
+			if (blockIndex >= 58) {
+				spiReadFrame((unsigned char*) blockSong, 128);
 
 				for (i = 1; i < 128; i = i + 2) {
 					bufferStack.push(blockSong[i]);
 				}
-				volatile checkBufferFull = bufferStack.isFull();
 
+				if (bufferStack.isFull()) {
+					volatile checkBufferFull = bufferStack.isFull();
+					volatile const int t = 0;
+				}
 				for (i = 0; i < 128; i = i + 2) {
 					otherBufferStack.push(blockSong[i]);
 				}
-				volatile checkBufferSecondFull = otherBufferStack.isFull();
+				if (otherBufferStack.isFull()) {
+					volatile checkBufferSecondFull = otherBufferStack.isFull();
+					volatile const int t = 0;
+				}
 
 				blockIndex = 0;
 				stereoBlockIndex = 0;
@@ -188,13 +195,13 @@ int main(void) {
 				sizeReadCounter++;
 				mmcUnmountBlock();
 				//End the song if over
-				if (endSong >= sizeReadCounter){
+				if (endSong <= sizeReadCounter) {
 					return 0;
 				}
 				startAddress = startAddress + 0x200;
 				volatile char result = mmcMountBlock(startAddress, 512);
 				if (result != MMC_SUCCESS) {
-					int i = 1;
+					volatile int i = 1;
 					return 0;
 				}
 				OffsetToNextBlock = 0;
