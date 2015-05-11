@@ -20,6 +20,7 @@ unsigned int stereoBlockIndex = 0;
 //This buffer will be written into TACCR1 on update
 volatile float buffer = 0;
 unsigned int value = 0;
+unsigned int valueTwo = 0;
 
 RingBuffer bufferStack;
 RingBuffer otherBufferStack;
@@ -35,8 +36,8 @@ __interrupt void TACCR0_INT(void) {
 #pragma vector=TIMER1_A0_VECTOR
 __interrupt void timerA2(void) {
 	++stereoBlockIndex;
-	value = otherBufferStack.pop();
-	TA1CCR1 = (int) value + 128;
+	valueTwo = otherBufferStack.pop();
+	TA1CCR2 = (int) valueTwo + 128;
 	LPM1_EXIT;
 }
 
@@ -57,8 +58,8 @@ int main(void) {
 //Set up output from Timer A0.1
 	P1SEL |= BIT6;
 
-	P2DIR |= BIT3;
-	P2SEL |= BIT3;
+	P2DIR |= BIT4;
+	P2SEL |= BIT4;
 
 //Set DCO to 16 MHz calibrated
 	DCOCTL = CALDCO_16MHZ;
@@ -73,18 +74,18 @@ int main(void) {
 
 //TACCR1 will hold the bin width for each sample
 	TACCR1 = 0;
-	TA1CCR1 = 0;
+	TA1CCR2 = 0;
 //Set up the Timer A module
 	TACTL = MC_1 | ID_0 | TASSEL_2;
 	TA1CTL = MC_1 | ID_0 | TASSEL_2;
 
 //Enable an interrupt when TAR == TACCR0
 	TACCTL0 = CCIE;
-	//TA1CCTL0 = CCIE;
+	TA1CCTL0 = CCIE;
 //Turn on internal PWM system that outputs on P1.6
 //Set as we count up to TACCR1, reset up to TACCR0
 	TA0CCTL1 = OUTMOD_7;
-	TA1CCTL1 = OUTMOD_7;
+	TA1CCTL2 = OUTMOD_7;
 
 	P2DIR |= BIT2;
 	P2OUT &= ~BIT2;
@@ -100,7 +101,7 @@ int main(void) {
 	P1OUT ^= LED; //Toggle the LED to indicate that reading was successful
 
 	unsigned char block[64] = { 0 };
-	volatile char result = mmcMountBlock(0x02fb400, 512);
+	volatile char result = mmcMountBlock(0x02fb400/*0x0005b600*/, 512);
 
 	//Read in the block 64 bytes at a time
 	if (result == MMC_SUCCESS) {
@@ -122,15 +123,18 @@ int main(void) {
 		unsigned int i; //loop variable
 		unsigned int j;
 		for (i = 0; i < 7; ++i) {
+
 			spiReadFrame(/*(void*)*/block, 64); //64 bytes
+
 		}
+
 		mmcUnmountBlock();
 
 		//Set up 128 byte buffer for songs
 		unsigned char blockSong[128] = { 0 };
 		//unsigned char SecondblockSong[128] = { 0 };
 
-		unsigned long int startAddress = 0x02fb400 + 0x200;
+		unsigned long int startAddress = 0x02fb400/*0x0005b600*/ + 0x200;
 		volatile char result = mmcMountBlock(startAddress, 512);
 		if (result != MMC_SUCCESS) {
 			volatile int t = 0;
@@ -152,8 +156,8 @@ int main(void) {
 		unsigned int OffsetToNextBlock = 2;
 		unsigned int sizeReadCounter = 0;
 		unsigned int endSong = snd_size / 512;
-
 		__enable_interrupt();
+
 		while (1) {
 			LPM1;
 
@@ -169,20 +173,21 @@ int main(void) {
 				spiReadFrame((unsigned char*) blockSong, 128);
 
 				for (i = 1; i < 128; i = i + 2) {
+
+					if (bufferStack.isFull()) {
+						volatile checkBufferFull = bufferStack.isFull();
+						LPM1;
+						volatile const int t = 0;
+					}
+
+					if (otherBufferStack.isFull()) {
+						volatile checkBufferSecondFull = otherBufferStack.isFull();
+						LPM1;
+						volatile const int t = 0;
+					}
 					bufferStack.push(blockSong[i]);
-					otherBufferStack.push(blockSong[i-1]);
-				}
+					otherBufferStack.push(blockSong[i - 1]);
 
-				if (bufferStack.isFull()) {
-					volatile checkBufferFull = bufferStack.isFull();
-					volatile const int t = 0;
-				}
-			//	for (i = 0; i < 128; i = i + 2) {
-
-			//	}
-				if (otherBufferStack.isFull()) {
-					volatile checkBufferSecondFull = otherBufferStack.isFull();
-					volatile const int t = 0;
 				}
 
 				blockIndex = 0;
@@ -195,13 +200,14 @@ int main(void) {
 				mmcUnmountBlock();
 				//End the song if over
 				if (endSong <= sizeReadCounter) {
-					return 0;
+					volatile int i = 1;
+					LPM4;
 				}
 				startAddress = startAddress + 0x200;
 				volatile char result = mmcMountBlock(startAddress, 512);
 				if (result != MMC_SUCCESS) {
 					volatile int i = 1;
-					return 0;
+					LPM4;
 				}
 				OffsetToNextBlock = 0;
 			}
