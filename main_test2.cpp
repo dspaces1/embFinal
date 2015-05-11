@@ -23,6 +23,7 @@ unsigned int value = 0;
 
 RingBuffer bufferStack;
 RingBuffer otherBufferStack;
+
 #pragma vector=TIMER0_A0_VECTOR
 __interrupt void TACCR0_INT(void) {
 	++blockIndex;
@@ -68,7 +69,7 @@ int main(void) {
 	 //Sourced from a clock running at 16MHz this
 	 will give us 16,000 samples/second */
 	TACCR0 = 2000;
-	TA1CCR0 = 1000;
+	TA1CCR0 = 2000;
 
 //TACCR1 will hold the bin width for each sample
 	TACCR1 = 0;
@@ -79,7 +80,7 @@ int main(void) {
 
 //Enable an interrupt when TAR == TACCR0
 	TACCTL0 = CCIE;
-	TA1CCTL0 = CCIE;
+	//TA1CCTL0 = CCIE;
 //Turn on internal PWM system that outputs on P1.6
 //Set as we count up to TACCR1, reset up to TACCR0
 	TA0CCTL1 = OUTMOD_7;
@@ -121,11 +122,8 @@ int main(void) {
 		unsigned int i; //loop variable
 		unsigned int j;
 		for (i = 0; i < 7; ++i) {
-
 			spiReadFrame(/*(void*)*/block, 64); //64 bytes
-
 		}
-
 		mmcUnmountBlock();
 
 		//Set up 128 byte buffer for songs
@@ -154,8 +152,8 @@ int main(void) {
 		unsigned int OffsetToNextBlock = 2;
 		unsigned int sizeReadCounter = 0;
 		unsigned int endSong = snd_size / 512;
-		__enable_interrupt();
 
+		__enable_interrupt();
 		while (1) {
 			LPM1;
 
@@ -172,15 +170,16 @@ int main(void) {
 
 				for (i = 1; i < 128; i = i + 2) {
 					bufferStack.push(blockSong[i]);
+					otherBufferStack.push(blockSong[i-1]);
 				}
 
 				if (bufferStack.isFull()) {
 					volatile checkBufferFull = bufferStack.isFull();
 					volatile const int t = 0;
 				}
-				for (i = 0; i < 128; i = i + 2) {
-					otherBufferStack.push(blockSong[i]);
-				}
+			//	for (i = 0; i < 128; i = i + 2) {
+
+			//	}
 				if (otherBufferStack.isFull()) {
 					volatile checkBufferSecondFull = otherBufferStack.isFull();
 					volatile const int t = 0;
